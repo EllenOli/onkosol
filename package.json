@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prebuild": "node -e \"const fs=require('fs');const p='src/main.tsx';console.log('Checking',p,'exists=',fs.existsSync(p)); if(!fs.existsSync(p)){console.error('ERROR: missing '+p+'. Check that src/ is committed and Root Directory is repo root.'); process.exit(1);} console.log('Files in src:',fs.readdirSync('src'));\""
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
