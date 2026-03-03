@@ -7,6 +7,7 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Use a relative path so builds work reliably on all hosts (including Vercel) -->
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
