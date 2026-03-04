@@ -1,27 +1,43 @@
 :root{
   --bg: #0F172A;
   --surface: #0B1220;
-  --card: #121C2F;
-  --card2: #0E1728;
+
+  --cardTop: rgba(18,28,47,.94);
+  --cardBottom: rgba(14,23,40,.94);
+
   --border: rgba(255,255,255,.08);
+  --border2: rgba(255,255,255,.12);
+
   --text: #E5E7EB;
   --muted: #A7B0C0;
 
-  --brand: #F29C1F;      /* laranja Onkosol */
-  --brand2: #E07D00;     /* hover */
-  --focus: rgba(242,156,31,.35);
+  /* Paleta Onkosol (uso contido) */
+  --brand: #F29C1F;
+  --brand2: #E07D00;
+
+  --focus: rgba(242,156,31,.30);
+
+  --shadow1: 0 10px 28px rgba(0,0,0,.26);
+  --shadow2: 0 14px 36px rgba(0,0,0,.30);
+
+  --radius: 16px;
+  --radius2: 12px;
 }
 
+/* Base */
 *{ box-sizing:border-box; }
 
 html, body{
   margin:0;
   padding:0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
   background:
-    radial-gradient(900px 500px at 20% 0%, rgba(242,156,31,.10), transparent 60%),
-    radial-gradient(800px 600px at 85% 20%, rgba(99,102,241,.10), transparent 55%),
+    radial-gradient(900px 500px at 18% 0%, rgba(242,156,31,.10), transparent 60%),
+    radial-gradient(900px 600px at 88% 12%, rgba(99,102,241,.10), transparent 55%),
+    linear-gradient(180deg, rgba(0,0,0,.0), rgba(0,0,0,.18)),
     var(--bg);
+
   color: var(--text);
 }
 
@@ -29,21 +45,26 @@ html, body{
   min-height:100vh;
 }
 
+/* Header */
 .header{
-  padding: 28px 16px 10px;
+  padding: 26px 16px 10px;
 }
 
 .headerInner{
   max-width: 1120px;
   margin: 0 auto;
+
   display:flex;
   gap: 18px;
   align-items:center;
+
   padding: 18px 18px;
+
   border: 1px solid var(--border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(18,28,47,.92), rgba(14,23,40,.92));
-  box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  border-radius: var(--radius);
+
+  background: linear-gradient(180deg, var(--cardTop), var(--cardBottom));
+  box-shadow: var(--shadow1);
 }
 
 .logo{
@@ -67,58 +88,87 @@ html, body{
   line-height: 1.45;
 }
 
+/* Layout principal */
 .container{
   max-width: 1120px;
   margin: 18px auto 48px;
   padding: 0 16px;
+
   display:grid;
   grid-template-columns: 1fr 1.25fr;
   gap: 18px;
 }
 
+/* Cards */
 .card{
-  border-radius: 16px;
+  border-radius: var(--radius);
   border: 1px solid var(--border);
-  background: linear-gradient(180deg, rgba(18,28,47,.92), rgba(14,23,40,.92));
-  box-shadow: 0 12px 30px rgba(0,0,0,.28);
+
+  background: linear-gradient(180deg, var(--cardTop), var(--cardBottom));
+  box-shadow: var(--shadow2);
   overflow:hidden;
 }
 
+/* =========================================================
+   FORM CARD (marca d’água com boneco por trás)
+   ========================================================= */
+
 .formCard{
-  display:grid;
-  grid-template-columns: 230px 1fr; /* <<< boneca ocupa a lateral esquerda */
-  min-height: 610px;              /* acompanha a altura e fica “alto” */
-}
-
-.formSideImage{
   position: relative;
-  background: var(--card2);
-  border-right: 1px solid var(--border);
+  min-height: 610px;
+  overflow: hidden;
 }
 
-.formSideImage img{
-  width:100%;
-  height:100%;
-  object-fit: cover;     /* <<< ocupa a coluna inteira */
-  object-position: center;
-  display:block;
-  filter: saturate(1.05) contrast(1.02);
+/* Boneco como watermark */
+.formCard::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+
+  background-image: url("/boneco.jpeg");
+  background-repeat: no-repeat;
+
+  /* Ajuste fino: mostra inteiro sem cortar */
+  background-size: 78% auto;
+  background-position: left 12px bottom -14px;
+
+  opacity: 0.09; /* bem sutil, profissional */
+  filter: grayscale(1) saturate(.85) blur(.2px) contrast(1.05);
+
+  pointer-events: none;
+  z-index: 0;
 }
 
-.formSideOverlay{
+/* Véu para garantir legibilidade do texto/inputs */
+.formCard::after{
+  content:"";
   position:absolute;
   inset:0;
-  background:
-    linear-gradient(180deg, rgba(15,23,42,.15), rgba(15,23,42,.65));
+
+  /* Escurece mais do lado direito (onde tem inputs) */
+  background: linear-gradient(90deg,
+    rgba(18,28,47,.55) 0%,
+    rgba(18,28,47,.86) 46%,
+    rgba(18,28,47,.95) 100%
+  );
+
+  pointer-events:none;
+  z-index: 1;
 }
 
+/* Conteúdo do formulário acima da marca d’água */
 .formContent{
+  position: relative;
+  z-index: 2;
+
   padding: 22px 22px 18px;
+
   display:flex;
   flex-direction:column;
   gap: 12px;
 }
 
+/* Campos */
 .field label{
   display:block;
   font-size: 13px;
@@ -129,16 +179,25 @@ html, body{
 input{
   width:100%;
   padding: 12px 12px;
-  border-radius: 12px;
+
+  border-radius: var(--radius2);
   border: 1px solid rgba(255,255,255,.10);
+
   background: rgba(255,255,255,.04);
   color: var(--text);
   outline:none;
+
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+input::placeholder{
+  color: rgba(167,176,192,.70);
 }
 
 input:focus{
   border-color: rgba(242,156,31,.55);
   box-shadow: 0 0 0 4px var(--focus);
+  background: rgba(255,255,255,.055);
 }
 
 .hint{
@@ -147,48 +206,73 @@ input:focus{
   color: var(--muted);
 }
 
+/* Botão (mais elegante, sem “ouro estourado”) */
 button{
   margin-top: 6px;
   width:100%;
   padding: 12px 14px;
-  border: none;
-  border-radius: 12px;
+
+  border: 1px solid rgba(0,0,0,.10);
+  border-radius: var(--radius2);
+
   font-weight: 700;
   letter-spacing: .2px;
-  background: linear-gradient(180deg, var(--brand), #f7b24c);
+
+  background: linear-gradient(180deg, rgba(242,156,31,.92), rgba(224,125,0,.92));
   color: #1b1206;
+
   cursor:pointer;
-  box-shadow: 0 10px 22px rgba(242,156,31,.20);
+  box-shadow: 0 10px 18px rgba(242,156,31,.16);
+
+  transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
 
 button:hover{
-  background: linear-gradient(180deg, #f7a731, var(--brand2));
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(242,156,31,.18);
+}
+
+button:active{
+  transform: translateY(0px);
 }
 
 button:disabled{
   opacity: .55;
   cursor: not-allowed;
   box-shadow: none;
+  transform: none;
 }
 
+/* Alert */
 .alert{
   margin-top: 6px;
   padding: 12px 12px;
-  border-radius: 12px;
+
+  border-radius: var(--radius2);
+
   background: rgba(255,255,255,.06);
   border: 1px solid rgba(255,255,255,.10);
+
   color: var(--text);
   font-size: 13px;
   line-height: 1.4;
 }
 
+/* Nota de privacidade */
 .privacyNote{
   margin-top: auto;
   padding-top: 10px;
+
   font-size: 12px;
   color: var(--muted);
+
   border-top: 1px dashed rgba(255,255,255,.12);
 }
+
+/* =========================================================
+   PDF CARD
+   ========================================================= */
 
 .pdfCard{
   display:flex;
@@ -200,7 +284,9 @@ button:disabled{
   display:flex;
   align-items:center;
   gap: 10px;
+
   padding: 14px 16px;
+
   border-bottom: 1px solid var(--border);
   background: rgba(255,255,255,.02);
 }
@@ -208,7 +294,7 @@ button:disabled{
 .dot{
   width: 8px;
   height: 8px;
-  border-radius: 99px;
+  border-radius: 999px;
   background: var(--brand);
   box-shadow: 0 0 0 4px rgba(242,156,31,.18);
 }
@@ -227,24 +313,40 @@ button:disabled{
 iframe{
   width:100%;
   height:100%;
+
   border: 1px solid rgba(255,255,255,.10);
-  border-radius: 12px;
+  border-radius: var(--radius2);
+
   background: #0b1220;
 }
 
-/* Mobile: empilha e some com a coluna da boneca */
+/* =========================================================
+   Responsivo
+   ========================================================= */
+
 @media (max-width: 980px){
   .container{
     grid-template-columns: 1fr;
   }
   .formCard{
-    grid-template-columns: 1fr;
     min-height: auto;
-  }
-  .formSideImage{
-    display:none;
   }
   .pdfCard{
     min-height: 520px;
+  }
+
+  /* No mobile, diminui a marca d’água para não atrapalhar */
+  .formCard::before{
+    background-size: 86% auto;
+    background-position: center bottom -18px;
+    opacity: 0.07;
+  }
+
+  .formCard::after{
+    background: linear-gradient(180deg,
+      rgba(18,28,47,.82) 0%,
+      rgba(18,28,47,.92) 45%,
+      rgba(18,28,47,.95) 100%
+    );
   }
 }
