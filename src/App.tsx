@@ -4,8 +4,7 @@ import { sha256Hex, toBase64 } from "./crypto";
 
 const TERM_URL = "/termo-lgpd.pdf";
 
-function formatBrasiliaISO(d: Date): string {
-  // Formato legível, mantendo horário de Brasília (sem depender de libs)
+function formatBrasilia(d: Date): string {
   const opts: Intl.DateTimeFormatOptions = {
     timeZone: "America/Sao_Paulo",
     year: "numeric",
@@ -16,8 +15,7 @@ function formatBrasiliaISO(d: Date): string {
     second: "2-digit",
   };
   const parts = new Intl.DateTimeFormat("pt-BR", opts).formatToParts(d);
-  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-  // dd/mm/yyyy HH:MM:SS
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
@@ -38,36 +36,36 @@ function downloadBytes(bytes: Uint8Array, filename: string) {
 }
 
 async function fetchTermPdf(): Promise<Uint8Array> {
-  const res = await fetch(TERM_URL);
-  if (!res.ok) throw new Error("Não consegui carregar o PDF do termo. Verifique public/termo-lgpd.pdf");
+  const res = await fetch(TERM_URL, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(
+      "Não consegui carregar o PDF do termo. Confirme se o arquivo está em public/termo-lgpd.pdf e se abre em /termo-lgpd.pdf."
+    );
+  }
   const buf = await res.arrayBuffer();
   return new Uint8Array(buf);
 }
 
-async function uploadToDrive(pdfBytes: Uint8Array, nome: string, cpf: string) {
-  const endpoint = import.meta.env.VITE_GAS_ENDPOINT as string | undefined;
-  const token = import.meta.env.VITE_GAS_TOKEN as string | undefined;
-  if (!endpoint || !token) {
-    throw new Error("Faltam variáveis VITE_GAS_ENDPOINT / VITE_GAS_TOKEN (configure no Vercel).");
-  }
-
+/**
+ * Envia para o backend serverless do Vercel (/api/upload),
+ * que por sua vez chama o Apps Script (sem CORS e sem expor token no browser).
+ */
+async function uploadToDriveViaApi(pdfBytes: Uint8Array, nome: string, cpf: string) {
   const payload = {
-    token,
-    pdf_base64: toBase64(pdfBytes),
     nome,
     cpf,
-    doc_name: "Termo_LGPD_Onkosol"
+    pdf_base64: toBase64(pdfBytes),
   };
 
-  const res = await fetch(endpoint, {
+  const res = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || !json.ok) {
-    throw new Error(json.error || "Falha ao enviar para o Google Drive.");
+  const json = await res.json().catch(() => ({} as any));
+  if (!res.ok || !json?.ok) {
+    throw new Error(json?.error || "Falha ao salvar o documento no Google Drive.");
   }
   return json;
 }
@@ -78,47 +76,50 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const cpfOk = useMemo(() => sanitizeCpf(cpf).length === 11, [cpf]);
+  const cpfClean = useMemo(() => sanitizeCpf(cpf), [cpf]);
+  const cpfOk = useMemo(() => cpfClean.length === 11, [cpfClean]);
 
   async function handleAccept() {
     setMsg(null);
-    const nomeTrim = nome.trim();
-    const cpfClean = sanitizeCpf(cpf);
 
+    const nomeTrim = nome.trim();
     if (!nomeTrim) return setMsg("Preencha seu nome completo.");
-    if (cpfClean.length !== 11) return setMsg("Preencha um CPF válido (11 dígitos).");
+    if (!cpfOk) return setMsg("Preencha um CPF válido (11 dígitos).");
 
     setBusy(true);
     try {
+      // 1) Carrega termo base
       const basePdf = await fetchTermPdf();
-      const now = new Date();
-      const acceptedAt = formatBrasiliaISO(now);
 
-      // Primeiro gera o PDF com o carimbo, depois calcula hash do PDF final (pro acceptanceId)
-      const temp = await generateAcceptedPdf(basePdf, {
+      // 2) Gera PDF com aceite e depois calcula hash para acceptanceId
+      const now = new Date();
+      const acceptedAt = formatBrasilia(now);
+
+      const tempPdf = await generateAcceptedPdf(basePdf, {
         nome: nomeTrim,
         cpf: cpfClean,
         acceptedAtISO: acceptedAt,
-        acceptanceId: "PENDENTE"
+        acceptanceId: "PENDENTE",
       });
 
-      const hash = await sha256Hex(temp);
+      const hash = await sha256Hex(tempPdf);
       const acceptanceId = hash.slice(0, 12).toUpperCase();
 
-      // Regerar com acceptanceId definitivo
+      // 3) PDF final com acceptanceId definitivo
       const finalPdf = await generateAcceptedPdf(basePdf, {
         nome: nomeTrim,
         cpf: cpfClean,
         acceptedAtISO: acceptedAt,
-        acceptanceId
+        acceptanceId,
       });
 
-      // 1) download pro paciente
-      const fileName = `Termo_LGPD_Onkosol_${nomeTrim}_${cpfClean}.pdf`.replace(/\s+/g, " ");
-      downloadBytes(finalPdf, fileName);
+      // 4) Download pro paciente (imediato)
+      const safeName = nomeTrim.replace(/\s+/g, " ").trim();
+      const filename = `Termo_LGPD_Onkosol_${safeName}_${cpfClean}.pdf`;
+      downloadBytes(finalPdf, filename);
 
-      // 2) salvar no Drive (privado)
-      await uploadToDrive(finalPdf, nomeTrim, cpfClean);
+      // 5) Salva no Drive via /api/upload (serverless)
+      await uploadToDriveViaApi(finalPdf, nomeTrim, cpfClean);
 
       setMsg("✅ Aceite registrado e documento salvo. Você já pode fechar esta página.");
     } catch (e: any) {
@@ -152,15 +153,17 @@ export default function App() {
             onChange={(e) => setNome(e.target.value)}
             placeholder="Digite seu nome completo"
             autoComplete="name"
+            disabled={busy}
           />
 
           <label>CPF *</label>
           <input
             value={cpf}
-            onChange={(e) => setCpf(e.target.value)}
+            onChange={(e) => setCpf(sanitizeCpf(e.target.value))}
             placeholder="Somente números"
             inputMode="numeric"
             autoComplete="off"
+            disabled={busy}
           />
 
           <button onClick={handleAccept} disabled={busy || !nome.trim() || !cpfOk}>
@@ -175,9 +178,7 @@ export default function App() {
         </div>
 
         <div className="card">
-          <p className="small" style={{ marginBottom: 10 }}>
-            Visualização do termo:
-          </p>
+          <p className="small" style={{ marginBottom: 10 }}>Visualização do termo:</p>
           <iframe src={TERM_URL} title="Termo LGPD Onkosol" />
         </div>
       </div>
