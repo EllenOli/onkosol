@@ -16,8 +16,7 @@ function formatBrasiliaISO(d: Date): string {
   };
 
   const parts = new Intl.DateTimeFormat("pt-BR", opts).formatToParts(d);
-  const get = (t: string) => parts.find(p => p.type === t)?.value ?? "";
-
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
@@ -32,7 +31,6 @@ function downloadBytes(bytes: Uint8Array, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -41,14 +39,13 @@ function downloadBytes(bytes: Uint8Array, filename: string) {
 }
 
 async function fetchTermPdf(): Promise<Uint8Array> {
-  const res = await fetch(TERM_URL);
+  const res = await fetch(TERM_URL, { cache: "no-store" });
   if (!res.ok) throw new Error("Não consegui carregar o PDF do termo.");
   const buf = await res.arrayBuffer();
   return new Uint8Array(buf);
 }
 
 async function uploadToDrive(pdfBytes: Uint8Array, nome: string, cpf: string) {
-
   const res = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -59,36 +56,31 @@ async function uploadToDrive(pdfBytes: Uint8Array, nome: string, cpf: string) {
     }),
   });
 
-  const json = await res.json();
-
+  const json = await res.json().catch(() => ({} as any));
   if (!res.ok || !json.ok) {
-    throw new Error(json.error || "Falha ao enviar para o Google Drive.");
+    throw new Error(json?.error || "Falha ao enviar para o Google Drive.");
   }
+  return json;
 }
 
 export default function App() {
-
   const [nome, setNome] = useState("");
   const [cpf, setCpf] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const cpfOk = useMemo(() => sanitizeCpf(cpf).length === 11, [cpf]);
+  const cpfClean = useMemo(() => sanitizeCpf(cpf), [cpf]);
+  const cpfOk = useMemo(() => cpfClean.length === 11, [cpfClean]);
 
   async function handleAccept() {
-
     setMsg(null);
 
     const nomeTrim = nome.trim();
-    const cpfClean = sanitizeCpf(cpf);
-
     if (!nomeTrim) return setMsg("Preencha seu nome completo.");
-    if (cpfClean.length !== 11) return setMsg("Preencha um CPF válido.");
+    if (!cpfOk) return setMsg("Preencha um CPF válido (11 dígitos).");
 
     setBusy(true);
-
     try {
-
       const basePdf = await fetchTermPdf();
       const now = new Date();
       const acceptedAt = formatBrasiliaISO(now);
@@ -97,7 +89,7 @@ export default function App() {
         nome: nomeTrim,
         cpf: cpfClean,
         acceptedAtISO: acceptedAt,
-        acceptanceId: "TEMP"
+        acceptanceId: "TEMP",
       });
 
       const hash = await sha256Hex(temp);
@@ -107,16 +99,15 @@ export default function App() {
         nome: nomeTrim,
         cpf: cpfClean,
         acceptedAtISO: acceptedAt,
-        acceptanceId
+        acceptanceId,
       });
 
-      const fileName = `Termo_LGPD_Onkosol_${nomeTrim}_${cpfClean}.pdf`;
+      const fileName = `Termo_LGPD_Onkosol_${nomeTrim}_${cpfClean}.pdf`.replace(/\s+/g, " ");
       downloadBytes(finalPdf, fileName);
 
       await uploadToDrive(finalPdf, nomeTrim, cpfClean);
 
-      setMsg("✅ Aceite registrado e documento salvo.");
-
+      setMsg("✅ Aceite registrado e documento salvo. Você já pode fechar esta página.");
     } catch (e: any) {
       setMsg(`❌ ${e?.message || String(e)}`);
     } finally {
@@ -125,63 +116,75 @@ export default function App() {
   }
 
   return (
-
     <div className="page">
-
       <header className="header">
-
-        <img src="/logo_full.jpeg" className="logo" />
-
+        <div className="headerInner">
+          <img src="/logo_full.jpeg" className="logo" alt="Onkosol" />
+          <div className="headerTitle">
+            <h1>Aceite do Termo LGPD</h1>
+            <p>
+              Leia o documento e confirme seus dados. Um PDF com seu aceite será gerado automaticamente.
+            </p>
+          </div>
+        </div>
       </header>
 
-      <div className="container">
+      <main className="container">
+        {/* FORM */}
+        <section className="card formCard">
+          <div className="formSideImage" aria-hidden="true">
+            <img src="/boneco.jpeg" alt="" />
+            <div className="formSideOverlay" />
+          </div>
 
-        <div className="card formCard">
+          <div className="formContent">
+            <div className="field">
+              <label>Nome completo *</label>
+              <input
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Digite seu nome completo"
+                autoComplete="name"
+                disabled={busy}
+              />
+            </div>
 
-          <img src="/boneco.jpeg" className="illustration"/>
+            <div className="field">
+              <label>CPF *</label>
+              <input
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                placeholder="Somente números"
+                inputMode="numeric"
+                autoComplete="off"
+                disabled={busy}
+              />
+              <div className="hint">Somente números (11 dígitos).</div>
+            </div>
 
-          <h1>Aceite do Termo LGPD</h1>
+            <button onClick={handleAccept} disabled={busy || !nome.trim() || !cpfOk}>
+              {busy ? "Gerando e salvando..." : "Li e concordo — Gerar PDF"}
+            </button>
 
-          <p className="subtitle">
-            Leia o documento e confirme seu aceite para continuar seu atendimento.
-          </p>
+            {msg && <div className="alert">{msg}</div>}
 
-          <label>Nome completo *</label>
+            <div className="privacyNote">
+              Ao confirmar, seu aceite será inserido no final do PDF e o documento será salvo de forma privada.
+            </div>
+          </div>
+        </section>
 
-          <input
-            value={nome}
-            onChange={(e)=>setNome(e.target.value)}
-            placeholder="Digite seu nome completo"
-          />
-
-          <label>CPF *</label>
-
-          <input
-            value={cpf}
-            onChange={(e)=>setCpf(e.target.value)}
-            placeholder="Somente números"
-          />
-
-          <button
-            disabled={busy || !nome.trim() || !cpfOk}
-            onClick={handleAccept}
-          >
-            {busy ? "Gerando..." : "Li e concordo"}
-          </button>
-
-          {msg && <div className="alert">{msg}</div>}
-
-        </div>
-
-        <div className="card pdfCard">
-
-          <iframe src={TERM_URL}/>
-
-        </div>
-
-      </div>
-
+        {/* PDF */}
+        <section className="card pdfCard">
+          <div className="pdfHeader">
+            <span className="dot" />
+            <span className="pdfTitle">Visualização do termo</span>
+          </div>
+          <div className="pdfFrame">
+            <iframe src={TERM_URL} title="Termo LGPD Onkosol" />
+          </div>
+        </section>
+      </main>
     </div>
-
   );
 }
