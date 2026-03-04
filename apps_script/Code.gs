@@ -10,8 +10,8 @@
  * - O arquivo será criado como PRIVADO (sem link público).
  */
 
-const FOLDER_ID = "COLE_AQUI_O_ID_DA_PASTA_NO_DRIVE";
-const API_TOKEN = "COLE_AQUI_UM_TOKEN_SECRETO_FORTE";
+const FOLDER_ID = "1uZpaLvdMvE9arf4j-U7AjAQyTsNbd-ia";
+const API_TOKEN = "onkosol_2026";
 
 function doPost(e) {
   try {
